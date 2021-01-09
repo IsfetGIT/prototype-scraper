@@ -64,32 +64,33 @@ class scraper (scrapy.Spider):
     urls = []
     today = date.today()
     date = today.strftime("%d/%m/%Y")
-    
+
     #gui = gui()
 
+    #def start_requests(self, domain):
+
+    #    for elem in self.start_urls:
+
+    #        if elem == 'stop':
+    #            break
+    #        else:
+    #            domain = urlparse(elem).netloc
+    #            if domain == 'www.tripadvisor.it':
+    #                yield scrapy.Request(response.urljoin(elem), self.tripadvisor)
+    #            elif elem.split('/')[2] == 'forum.tomshw.it':
+    #                yield scrapy.Request(response.urljoin(elem), self.tomshw)
+
     def parse(self, response):
-
-    	# qui posso inserire lo split sulla url e decidere come far muovere lo scraper in base al sito di crowling
-    	domain = urlparse(response.url).netloc
-
-    	if domain == 'www.tripadvisor.it':
-    		yield self.tripadvisor(response)
-    	elif domain == 'forum.tomshw.it':
-    		yield self.tomshw(response)
-        #for elem in self.start_urls:
-        #    print(elem.split('/'))
-        #    if elem == 'stop':
-        #        break
-        #    if elem.split('/')[2] == 'www.tripadvisor.it':
-        #        print('sono qui           ',response.urljoin(elem))
-        #        yield scrapy.Request(response.urljoin(elem), self.tripadvisor)
-        #    elif elem.split('/')[2] == 'forum.tomshw.it':
-        #        yield scrapy.Request(response.urljoin(elem), self.tomshw)ù
-        #        yield
+        print('ora parso      ', response.url)
+        domain = urlparse(response.url).netloc
+        if domain == 'www.tripadvisor.it':
+            yield scrapy.Request(response.url, self.tripadvisor, dont_filter = True)
+        elif domain == 'forum.tomshw.it':
+            yield scrapy.Request(response.url, self.tomshw, dont_filter = True)
 
     def tomshw(self, response):
 
-        return None
+        print('sono in TOMSHW')
 
     def tripadvisor(self, response):
 
@@ -105,7 +106,7 @@ class scraper (scrapy.Spider):
 
         next_page = response.css('a.next::attr(href)').get()
 
-        if next_page is not None:
+        if next_page is not None and self.count_link < 3:
             next_page = response.urljoin(next_page)
             self.count_link += 1
             print('next page      ', next_page)
@@ -115,7 +116,7 @@ class scraper (scrapy.Spider):
                 yield scrapy.Request(response.urljoin(self.urls[link]), self.follow_link)
 
     def follow_link(self, response):
-
+        print('sono in follow link')
         for review in response.css('div.rev_wrap'):
             #yield {
             #    'text': review.css('span::text').get(),
@@ -131,7 +132,7 @@ class scraper (scrapy.Spider):
             #self.author_list.append(review.css('a.ui_header_link _1r_My98y::text').get())
 
         next_page = response.css('a.next::attr(href)').get()
-        if next_page is not None:
+        if next_page is not None and self.count_rev < 3:
             next_page = response.urljoin(next_page)
             self.count_rev += 1
             yield scrapy.Request(next_page, callback=self.follow_link)

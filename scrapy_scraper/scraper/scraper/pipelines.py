@@ -8,7 +8,6 @@
 from itemadapter import ItemAdapter
 from scrapy.utils.project import get_project_settings
 from scrapy.exceptions import DropItem
-import logging
 import pymongo
 
 class MongoDBPipelines(object):
