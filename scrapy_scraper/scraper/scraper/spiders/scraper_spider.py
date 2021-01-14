@@ -47,38 +47,34 @@ from urllib.parse import urlparse
 class scraper (scrapy.Spider):
 
     name = "scraper"
-    count_link = 0
-    count_rev = 0
     start_urls = []
     url = ''
+    count_link_trip = 0
+    count_rev_trip = 0
 
-    while True:
-        if url == 'stop':
-            break
-        else:
-            url = input("Inserire url: (digitare 'stop' per fermare l'inserimento) ")
-            start_urls.append(url)
+    count_link_th = 0
+    count_rev_th = 0
+
+
+    #while True:
+    #    if url == 'stop':
+    #        break
+    #    else:
+    #        url = input("Inserire url: (digitare 'stop' per fermare l'inserimento) ")
+    #        start_urls.append(url)
     #print(url.split("/")[2])
+
+    f = open("urls.txt", "r")
+    lines = f.readlines()
+    for line in lines:
+        start_urls.append(line)
+    trip_urls = []
+    tomhw_urls = []
     data_list = []
-    author_list = []
-    urls = []
     today = date.today()
     date = today.strftime("%d/%m/%Y")
 
     #gui = gui()
-
-    #def start_requests(self, domain):
-
-    #    for elem in self.start_urls:
-
-    #        if elem == 'stop':
-    #            break
-    #        else:
-    #            domain = urlparse(elem).netloc
-    #            if domain == 'www.tripadvisor.it':
-    #                yield scrapy.Request(response.urljoin(elem), self.tripadvisor)
-    #            elif elem.split('/')[2] == 'forum.tomshw.it':
-    #                yield scrapy.Request(response.urljoin(elem), self.tomshw)
 
     def parse(self, response):
         print('ora parso      ', response.url)
@@ -90,9 +86,22 @@ class scraper (scrapy.Spider):
 
     def tomshw(self, response):
 
-        print('sono in TOMSHW')
+        for element in response.css('div.structItem'):
+            self.tomhw_urls.append(element.css('div.structItem-title::attr(uix-data-href)').get())
+
+            next_page = response.css('a.pageNav-jump--next::attr(href)').get()
+
+            if next_page is not None and self.count_link_th <= 3:
+                next_page = response.urljoin(next_page)
+                print('next page      ', next_page)
+                self.count_link_th += 1
+                yield scrapy.Request(next_page, self.parse)
+            else:
+                for link in range(len(self.tomhw_urls)):
+                    yield scrapy.Request(response.urljoin(self.tomhw_urls[link]), self.follow_link_THW)
 
     def tripadvisor(self, response):
+        count_link = 0
 
         for element in response.css('div.wQjYiB7z'):
             #yield {
@@ -102,21 +111,20 @@ class scraper (scrapy.Spider):
             #self.data_list.append(review.css('span::text').get())
             #self.author_list.append(review.css('a.ui_header_link _1r_My98y::text').get())
             print('pagina ristorante     ', element.css('a._15_ydu6b::attr(href)').get())
-            self.urls.append(element.css('a._15_ydu6b::attr(href)').get())
+            self.trip_urls.append(element.css('a._15_ydu6b::attr(href)').get())
 
         next_page = response.css('a.next::attr(href)').get()
 
-        if next_page is not None and self.count_link < 3:
+        if next_page is not None and self.count_link_trip <= 3:
             next_page = response.urljoin(next_page)
-            self.count_link += 1
-            print('next page      ', next_page)
+            self.count_link_trip += 1
             yield scrapy.Request(next_page, self.parse)
         else:
-            for link in range(len(self.urls)):
-                yield scrapy.Request(response.urljoin(self.urls[link]), self.follow_link)
+            for link in range(len(self.trip_urls)):
+                yield scrapy.Request(response.urljoin(self.trip_urls[link]), self.follow_link_TA)
 
-    def follow_link(self, response):
-        print('sono in follow link')
+    def follow_link_TA(self, response):
+
         for review in response.css('div.rev_wrap'):
             #yield {
             #    'text': review.css('span::text').get(),
@@ -127,17 +135,41 @@ class scraper (scrapy.Spider):
             item['review'] = review.css('p.partial_entry::text').get()
             item['user'] = review.css('div.info_text::text').get()
             item['timestamp'] = self.date
-            #item['source'] = self.url.split("/")[2]
+            item['source'] = urlparse(response.url).netloc
             yield item
             #self.author_list.append(review.css('a.ui_header_link _1r_My98y::text').get())
 
         next_page = response.css('a.next::attr(href)').get()
-        if next_page is not None and self.count_rev < 3:
+        if next_page is not None and self.count_rev_trip <= 3:
             next_page = response.urljoin(next_page)
-            self.count_rev += 1
-            yield scrapy.Request(next_page, callback=self.follow_link)
+            self.count_rev_trip += 1
+            yield scrapy.Request(next_page, callback=self.follow_link_TA)
+
+    def follow_link_THW(self, response):
+        print('response seconda', response.url)
+        for elem in response.css('div.message-userContent'):
+
+            self.data_list.append(elem.css('div.bbWrapper::text').get())
+            item = ScraperItem()
+            item['review'] = elem.css('div.bbWrapper::text').get()
+            item['user'] = ''
+            item['timestamp'] = self.date
+            item['source'] = urlparse(response.url).netloc
+            yield item
+            #self.author_list.append(review.css('a.ui_header_link _1r_My98y::text').get())
+
+        next_page = response.css('a.pageNav-jump--next::attr(href)').get()
+        if next_page is not None and self.count_rev_th <= 3:
+            next_page = response.urljoin(next_page)
+            self.count_rev_th += 1
+            yield scrapy.Request(next_page, callback=self.follow_link_THW)
 
     def closed(self, reason):
+
+        for elem in self.data_list:
+            if elem is None:
+                self.data_list.remove(elem)
+
         prepare_text(self.data_list)
 
 
